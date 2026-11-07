@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloud Stream</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e9eef3; --surface:#ffffff; --ink:#14213d; --muted:#5b6b82;
+  --line:#cfd8e3; --accent:#0b7f86; --accent-ink:#ffffff; --chip:#dff1f2;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0f1724; --surface:#18233a; --ink:#e8eefc; --muted:#9db0cc;
+    --line:#2a3a58; --accent:#4cc9d1; --accent-ink:#06222a; --chip:#1d3a47;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:'Sora',system-ui,-apple-system,'Segoe UI',sans-serif; line-height:1.5;
+  padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
+}
+header,main,footer{max-width:960px; margin:0 auto; padding:0 16px}
+header{padding-top:28px}
+h1{font-size:clamp(2rem,7vw,3.4rem); font-weight:800; letter-spacing:-.03em; margin:0; line-height:1.05}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted); margin:8px 0 20px; max-width:46ch}
+.bar{display:flex; gap:8px; flex-wrap:wrap}
+input[type=search],input[type=password],input[type=text]{
+  flex:1 1 220px; min-width:0; padding:13px 14px; border-radius:10px;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink); font:inherit;
+}
+button{
+  font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:10px;
+  padding:13px 18px; background:var(--accent); color:var(--accent-ink);
+}
+button.ghost{background:transparent; color:var(--ink); border:1px solid var(--line)}
+button.ghost[aria-pressed=true]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+.tabs{display:flex; gap:8px; margin:18px 0 6px}
+.tabs button{padding:9px 14px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px; margin:16px 0}
+.panel p{margin:0 0 10px}
+.panel small{color:var(--muted)}
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:14px; margin:16px 0 32px}
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden;
+  text-align:left; padding:0; color:inherit; display:flex; flex-direction:column;
+}
+.card img,.card .noimg{width:100%; aspect-ratio:2/3; object-fit:cover; background:var(--chip); display:block}
+.card .noimg{display:grid; place-items:center; color:var(--muted); font-size:.8rem}
+.card div.meta{padding:9px 10px 11px}
+.card b{display:block; font-size:.88rem; line-height:1.25}
+.card span{color:var(--muted); font-size:.78rem}
+.empty{color:var(--muted); padding:28px 0}
+dialog{
+  width:min(640px,calc(100% - 24px)); max-height:calc(100% - 24px); padding:0;
+  border:1px solid var(--line); border-radius:14px; background:var(--surface); color:var(--ink);
+}
+dialog::backdrop{background:rgba(8,14,26,.6)}
+.dlg{padding:18px; display:grid; gap:14px}
+.dlg-top{display:grid; grid-template-columns:110px 1fr; gap:14px}
+.dlg-top img{width:100%; border-radius:8px; aspect-ratio:2/3; object-fit:cover; background:var(--chip)}
+.dlg h2{margin:0 0 4px; font-size:1.3rem; line-height:1.2}
+.facts{color:var(--muted); font-size:.85rem}
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px}
+.chip{background:var(--chip); border-radius:999px; padding:4px 11px; font-size:.82rem}
+h3{font-size:.95rem; margin:6px 0 2px}
+.dlg-actions{display:flex; gap:8px; flex-wrap:wrap}
+footer{color:var(--muted); font-size:.78rem; padding-top:12px; padding-bottom:32px}
+footer a{color:inherit}
+@media (prefers-reduced-motion: no-preference){ .card{transition:border-color .15s} .card:hover{border-color:var(--accent)} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cloud <span>Stream</span></h1>
+  <p class="sub">Filmleri bul, hangi platformda izlenebildiğini gör, izleme listeni tut.</p>
+  <form class="bar" id="searchForm" role="search">
+    <input type="search" id="q" placeholder="Film adı yaz" aria-label="Film ara" autocomplete="off">
+    <button type="submit">Ara</button>
+  </form>
+  <div class="tabs" role="group" aria-label="Görünüm">
+    <button class="ghost" id="tabSearch" aria-pressed="true">Keşfet</button>
+    <button class="ghost" id="tabList" aria-pressed="false">İzleme listem</button>
+    <button class="ghost" id="keyBtn">API anahtarı</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel" id="keyPanel" hidden>
+    <p><b>TMDB API anahtarını gir.</b></p>
+    <p><small>themoviedb.org hesabında Ayarlar → API bölümünden ücretsiz alınır. Anahtar yalnızca bu tarayıcıda saklanır.</small></p>
+    <div class="bar">
+      <input type="password" id="keyInput" placeholder="API anahtarı" aria-label="TMDB API anahtarı" autocomplete="off">
+      <button id="keySave" type="button">Kaydet</button>
+    </div>
+  </section>
+
+  <p class="empty" id="status" role="status"></p>
+  <section class="grid" id="grid" aria-live="polite"></section>
+</main>
+
+<dialog id="dlg" aria-label="Film ayrıntıları"><div class="dlg" id="dlgBody"></div></dialog>
+
+<footer>
+  Film verileri <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a> üzerinden,
+  izleme platformu bilgileri <a href="https://www.justwatch.com" target="_blank" rel="noopener">JustWatch</a> tarafından sağlanır.
+  Bu ürün TMDB API’sini kullanır ancak TMDB tarafından onaylanmamıştır.
+</footer>
+
+<script>
+const IMG = 'https://image.tmdb.org/t/p/';
+const $ = id => document.getElementById(id);
+let view = 'search';
+
+/* Güvenli depolama: erişilemezse sayfa yine çalışır */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : v; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+};
+const getKey = () => store.get('cs_key', '');
+const getList = () => { try { return JSON.parse(store.get('cs_list', '[]')); } catch(e){ return []; } };
+const saveList = l => store.set('cs_list', JSON.stringify(l));
+
+async function api(path, params = {}){
+  const key = getKey();
+  if(!key) throw new Error('NOKEY');
+  const url = new URL('https://api.themoviedb.org/3' + path);
+  url.searchParams.set('language', 'tr-TR');
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const opts = {};
+  if(key.length > 60) opts.headers = { Authorization: 'Bearer ' + key };   // v4 token
+  else url.searchParams.set('api_key', key);                               // v3 anahtar
+  const res = await fetch(url, opts);
+  if(res.status === 401) throw new Error('BADKEY');
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+function esc(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+function card(m){
+  const year = (m.release_date || m.year || '').toString().slice(0, 4);
+  const poster = m.poster_path || m.poster;
+  const img = poster ? `<img loading="lazy" src="${IMG}w342${poster}" alt="">` : `<div class="noimg">Afiş yok</div>`;
+  const rate = m.vote_average ? ` · ★ ${m.vote_average.toFixed(1)}` : '';
+  return `<button class="card" data-id="${m.id}">${img}
+    <div class="meta"><b>${esc(m.title)}</b><span>${year}${rate}</span></div></button>`;
+}
+
+function showGrid(items, emptyMsg){
+  $('grid').innerHTML = items.map(card).join('');
+  $('status').textContent = items.length ? '' : emptyMsg;
+}
+
+function needKey(){
+  $('keyPanel').hidden = false;
+  $('grid').innerHTML = '';
+  $('status').textContent = 'Başlamak için TMDB API anahtarını gir.';
+}
+
+function handleErr(e){
+  if(e.message === 'NOKEY') return needKey();
+  if(e.message === 'BADKEY'){ $('keyPanel').hidden = false; $('status').textContent = 'API anahtarı geçersiz. Kontrol edip tekrar kaydet.'; return; }
+  $('status').textContent = 'Veri alınamadı. İnternet bağlantını kontrol edip tekrar dene.';
+}
+
+async function loadTrending(){
+  $('status').textContent = 'Yükleniyor…';
+  try { const d = await api('/trending/movie/week'); showGrid(d.results, 'Sonuç bulunamadı.'); }
+  catch(e){ handleErr(e); }
+}
+
+async function doSearch(q){
+  $('status').textContent = 'Aranıyor…';
+  try { const d = await api('/search/movie', { query: q }); showGrid(d.results, 'Bu aramayla eşleşen film yok.'); }
+  catch(e){ handleErr(e); }
+}
+
+function renderList(){
+  showGrid(getList(), 'Listen boş. Bir filmi açıp “Listeye ekle” düğmesine bas.');
+}
+
+function setView(v){
+  view = v;
+  $('tabSearch').setAttribute('aria-pressed', v === 'search');
+  $('tabList').setAttribute('aria-pressed', v === 'list');
+  if(v === 'list') renderList(); else loadTrending();
+}
+
+function providerGroup(title, arr){
+  if(!arr || !arr.length) return '';
+  return `<h3>${title}</h3><div class="chips">${arr.map(p => `<span class="chip">${esc(p.provider_name)}</span>`).join('')}</div>`;
+}
+
+async function openMovie(id){
+  const dlg = $('dlg'), body = $('dlgBody');
+  body.innerHTML = '<p>Yükleniyor…</p>';
+  dlg.showModal();
+  try {
+    const m = await api('/movie/' + id, { append_to_response: 'watch/providers' });
+    const tr = m['watch/providers']?.results?.TR;
+    const inList = getList().some(x => x.id === m.id);
+    const year = (m.release_date || '').slice(0, 4);
+    const genres = (m.genres || []).map(g => `<span class="chip">${esc(g.name)}</span>`).join('');
+    const providers = tr
+      ? providerGroup('Abonelikle izle', tr.flatrate) + providerGroup('Kirala', tr.rent) + providerGroup('Satın al', tr.buy)
+        + (tr.link ? `<p class="facts"><a href="${tr.link}" target="_blank" rel="noopener">Türkiye için tüm seçenekler</a></p>` : '')
+      : '<p class="facts">Bu film için Türkiye’de platform bilgisi bulunamadı.</p>';
+    body.innerHTML = `
+      <div class="dlg-top">
+        ${m.poster_path ? `<img src="${IMG}w342${m.poster_path}" alt="">` : '<div class="noimg"></div>'}
+        <div>
+          <h2>${esc(m.title)}</h2>
+          <div class="facts">${year}${m.runtime ? ' · ' + m.runtime + ' dk' : ''}${m.vote_average ? ' · ★ ' + m.vote_average.toFixed(1) : ''}</div>
+          <div class="chips">${genres}</div>
+        </div>
+      </div>
+      <p>${esc(m.overview) || 'Bu film için Türkçe özet yok.'}</p>
+      ${providers}
+      <div class="dlg-actions">
+        <button id="toggleList" type="button">${inList ? 'Listeden çıkar' : 'Listeye ekle'}</button>
+        <button class="ghost" id="closeDlg" type="button">Kapat</button>
+      </div>`;
+    $('closeDlg').onclick = () => dlg.close();
+    $('toggleList').onclick = () => {
+      let l = getList();
+      if(l.some(x => x.id === m.id)) l = l.filter(x => x.id !== m.id);
+      else l.push({ id: m.id, title: m.title, year: year, poster: m.poster_path, vote_average: m.vote_average });
+      saveList(l);
+      $('toggleList').textContent = l.some(x => x.id === m.id) ? 'Listeden çıkar' : 'Listeye ekle';
+      if(view === 'list') renderList();
+    };
+  } catch(e){
+    body.innerHTML = '<p>Film ayrıntıları alınamadı. Tekrar dene.</p><div class="dlg-actions"><button id="closeDlg" type="button">Kapat</button></div>';
+    $('closeDlg').onclick = () => dlg.close();
+  }
+}
+
+$('grid').addEventListener('click', e => {
+  const c = e.target.closest('.card');
+  if(c) openMovie(c.dataset.id);
+});
+$('dlg').addEventListener('click', e => { if(e.target === $('dlg')) $('dlg').close(); });
+$('searchForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = $('q').value.trim();
+  if(!q) return;
+  setView('search');
+  doSearch(q);
+});
+$('tabSearch').onclick = () => setView('search');
+$('tabList').onclick = () => setView('list');
+$('keyBtn').onclick = () => { $('keyPanel').hidden = !$('keyPanel').hidden; };
+$('keySave').onclick = () => {
+  const v = $('keyInput').value.trim();
+  if(!v) return;
+  store.set('cs_key', v);
+  $('keyInput').value = '';
+  $('keyPanel').hidden = true;
+  setView('search');
+};
+
+setView('search');
+</script>
+</body>
+</html>
