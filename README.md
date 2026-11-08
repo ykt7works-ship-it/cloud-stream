@@ -1,4 +1,4 @@
-# Cloud Stream
+# ykt7
 
 Film arama, izleme listesi ve “hangi platformda izlenir?” bilgisini tek sayfada toplayan hafif bir web uygulaması.
 
